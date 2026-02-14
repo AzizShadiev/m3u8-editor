@@ -3,6 +3,32 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         Title="M3U8 Editor PRO + Player" Height="800" Width="1250" Background="#1E1E1E">
+    
+    <Window.Resources>
+        <Style x:Key="PlayerCircleButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#80000000"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="19">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#CC000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> 
@@ -21,6 +47,7 @@
             <TextBox x:Name="TxtSearch" Width="250" Height="30" Background="#2D2D2D" Foreground="White" 
                      TextChanged="TxtSearch_TextChanged" VerticalContentAlignment="Center" BorderBrush="#3F3F46"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="📥 Умный импорт" Click="ImportAndMerge_Click" Width="135" Margin="5,0" Background="#2D2D30" Foreground="#E1E1E1" BorderBrush="#3E3E42"/>
                 <Button Content="📂 Открыть" Click="BtnOpen_Click" Width="100" Margin="5,0" Background="#3E3E42" Foreground="White"/>
                 <Button Content="💾 Сохранить" Click="BtnSave_Click" Width="120" Background="#0E639C" Foreground="White" BorderThickness="0"/>
             </StackPanel>
@@ -44,7 +71,7 @@
         <ListBox x:Name="ChannelsList" Grid.Row="2" Grid.Column="0" Background="Transparent" BorderThickness="0" Margin="10,0"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" AllowDrop="True"
                  MouseDoubleClick="ChannelsList_MouseDoubleClick" KeyDown="ChannelsList_KeyDown"
-                 PreviewMouseMove="ChannelsList_PreviewMouseMove" Drop="ChannelsList_Drop"
+                 PreviewMouseMove="ChannelsList_PreviewMouseMove" PreviewDragOver="ChannelsList_PreviewDragOver" Drop="ChannelsList_Drop"
                  SelectionChanged="ChannelsList_SelectionChanged">
             
             <ListBox.Resources>
@@ -96,27 +123,20 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
-                            <TextBlock Text="♻" Foreground="Orange" FontSize="14" FontWeight="Bold" 
-                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2">
+                            <TextBlock Text="♻" Foreground="Orange" FontSize="14" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasBackup}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasBackup}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
-                                <TextBlock.Effect>
-                                    <DropShadowEffect BlurRadius="4" ShadowDepth="0" Color="Black"/>
-                                </TextBlock.Effect>
+                                <TextBlock.Effect><DropShadowEffect BlurRadius="4" ShadowDepth="0" Color="Black"/></TextBlock.Effect>
                             </TextBlock>
 
                             <Ellipse Width="10" Height="10" Fill="{Binding StatusColor}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2">
-                                <Ellipse.Effect>
-                                    <DropShadowEffect Color="Black" BlurRadius="5" ShadowDepth="0"/>
-                                </Ellipse.Effect>
+                                <Ellipse.Effect><DropShadowEffect Color="Black" BlurRadius="5" ShadowDepth="0"/></Ellipse.Effect>
                             </Ellipse>
 
                             <Image Grid.Row="0" Source="{Binding DisplayLogo}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,0,5"/>
@@ -131,21 +151,66 @@
         <Border Grid.Row="0" Grid.RowSpan="4" Grid.Column="1" Background="#111" BorderBrush="#3F3F46" BorderThickness="1,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="240"/> 
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <Button Content="✕" Click="BtnClosePlayer_Click" HorizontalAlignment="Right" Background="Transparent" Foreground="Gray" BorderThickness="0" Margin="10" FontSize="16"/>
+                    <RowDefinition Height="Auto"/> <RowDefinition Height="240"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+
+                <Button Content="✕" Click="BtnClosePlayer_Click" HorizontalAlignment="Right" 
+                        Background="Transparent" Foreground="Gray" BorderThickness="0" 
+                        Margin="10" FontSize="18" Panel.ZIndex="50" Cursor="Hand"/>
                 
-                <Border Grid.Row="1" Background="Black" Margin="10" CornerRadius="4" ClipToBounds="True">
-                    <vlc:VideoView x:Name="VideoPlayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                <Border Grid.Row="1" Background="Black" Margin="10,35,10,10" CornerRadius="4" ClipToBounds="True">
+                    <Grid>
+                        <vlc:VideoView x:Name="VideoPlayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        
+                        <Button x:Name="BtnMute" Style="{StaticResource PlayerCircleButtonStyle}"
+                                Content="🔊" Click="BtnMute_Click" 
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" 
+                                Margin="15" Panel.ZIndex="100"/>
+                    </Grid>
                 </Border>
 
-                <StackPanel Grid.Row="2" Margin="15">
-                    <TextBlock x:Name="TxtPlayingName" Foreground="White" FontSize="16" FontWeight="Bold" TextWrapping="Wrap"/>
-                    <TextBlock x:Name="TxtPlayingGroup" Foreground="Gray" Margin="0,5" FontSize="12"/>
-                    <TextBlock x:Name="TxtPlayingUrl" Foreground="#555" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0" FontStyle="Italic"/>
-                </StackPanel>
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15,5,15,15">
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Image Grid.Column="0" Source="{Binding SelectedItem.DisplayLogo, ElementName=ChannelsList}" 
+                                   Width="60" Height="60" Stretch="Uniform" VerticalAlignment="Top" Margin="0,0,12,0"/>
+                            
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding SelectedItem.Name, ElementName=ChannelsList}" 
+                                           Foreground="White" FontSize="16" FontWeight="Bold" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding SelectedItem.GroupTitle, ElementName=ChannelsList}" 
+                                           Foreground="Cyan" FontSize="12" Margin="0,2,0,0"/>
+                                <TextBlock Text="{Binding SelectedItem.StreamUrl, ElementName=ChannelsList}" 
+                                           Foreground="#444" FontSize="9" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" FontStyle="Italic"/>
+                            </StackPanel>
+                        </Grid>
+                        
+                        <Separator Margin="0,5,0,15" Background="#333"/>
+
+                        <TextBlock Text="СЕЙЧАС В ЭФИРЕ:" Foreground="Gray" FontSize="10" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <Border Background="#1A1A1A" Padding="10" CornerRadius="5" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="{Binding SelectedItem.CurrentProgramTime, ElementName=ChannelsList}" 
+                                           Foreground="Orange" FontSize="11" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding SelectedItem.CurrentProgramTitle, ElementName=ChannelsList}" 
+                                           Foreground="White" FontSize="14" FontWeight="Bold" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="ДАЛЕЕ:" Foreground="Gray" FontSize="10" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <ItemsControl ItemsSource="{Binding SelectedItem.UpcomingPrograms, ElementName=ChannelsList}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Foreground="#AAA" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Border>
 

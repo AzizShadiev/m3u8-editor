@@ -25,15 +25,18 @@ namespace WpfApp1 {
             );
 
             // ФИКС: Если канал скрыт (IsHidden) и ни один поток не активен,
-            // делаем первый поток активным внутри окна редактирования, чтобы его можно было проверить/включить
+            // делаем первый поток активным внутри окна редактирования
             if (!LocalSources.Any(s => s.IsActive) && LocalSources.Any()) {
                 LocalSources[0].IsActive = true;
             }
             
             ItemsSources.ItemsSource = LocalSources;
+            
+            // ЗАГРУЗКА ДАННЫХ В ПОЛЯ
             TxtName.Text = ch.Name;
             TxtGroup.Text = ch.GroupTitle;
             TxtLogo.Text = ch.LogoUrl;
+            TxtTvgId.Text = ch.TvgId; // <-- Добавлено: подгружаем TVG-ID
             TxtOptions.Text = ch.RawOptions;
         }
 
@@ -71,10 +74,10 @@ namespace WpfApp1 {
                         TxtName.Text = match.Groups[2].Value.Trim();
                         TxtLogo.Text = GetAttr(attrs, "tvg-logo");
                         TxtGroup.Text = GetAttr(attrs, "group-title");
+                        TxtTvgId.Text = GetAttr(attrs, "tvg-id"); // <-- Добавлено: парсим ID из строки
                     }
                 }
                 else if (l.Contains("http")) {
-                    // ФИКС: Для парсинга "сырых" данных тоже проверяем активность
                     bool isCommented = l.StartsWith("#");
                     LocalSources.Add(new StreamSource { 
                         Url = l.TrimStart('#'), 
@@ -82,23 +85,22 @@ namespace WpfApp1 {
                     });
                 }
             }
-            // Если после парсинга всё закомментировано, активируем первый
             if (!LocalSources.Any(s => s.IsActive) && LocalSources.Any()) LocalSources[0].IsActive = true;
         }
 
         private string GetAttr(string text, string attr) => Regex.Match(text, attr + @"=""([^""]*)""").Groups[1].Value;
 
         private void BtnSave_Click(object sender, RoutedEventArgs e) {
+            // СОХРАНЕНИЕ ДАННЫХ
             _ch.Name = TxtName.Text;
             _ch.GroupTitle = TxtGroup.Text;
             _ch.LogoUrl = TxtLogo.Text;
+            _ch.TvgId = TxtTvgId.Text; // <-- Добавлено: сохраняем TVG-ID
             _ch.RawOptions = TxtOptions.Text;
             
             _ch.Sources.Clear();
             foreach (var s in LocalSources) _ch.Sources.Add(s);
 
-            // Если в окне редактирования мы выбрали какой-то активный поток, 
-            // то логично предположить, что пользователь хочет "проявить" канал
             if (_ch.IsHidden && _ch.Sources.Any(s => s.IsActive)) {
                 _ch.IsHidden = false;
             }
