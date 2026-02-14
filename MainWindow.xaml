@@ -88,10 +88,13 @@
                 <Style TargetType="ListBoxItem">
                     <Setter Property="ContextMenu" Value="{StaticResource ChannelContextMenu}"/>
                     <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ListBoxItem">
-                                <ContentPresenter/>
+                                <Border Background="Transparent">
+                                    <ContentPresenter/>
+                                </Border>
                             </ControlTemplate>
                         </Setter.Value>
                     </Setter>
@@ -151,7 +154,10 @@
         <Border Grid.Row="0" Grid.RowSpan="4" Grid.Column="1" Background="#111" BorderBrush="#3F3F46" BorderThickness="1,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/> <RowDefinition Height="240"/> <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/> 
+                    <RowDefinition Height="240"/> 
+                    <RowDefinition Height="*"/>    
+                </Grid.RowDefinitions>
 
                 <Button Content="✕" Click="BtnClosePlayer_Click" HorizontalAlignment="Right" 
                         Background="Transparent" Foreground="Gray" BorderThickness="0" 

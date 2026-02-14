@@ -68,19 +68,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
     // --- ЛОГИКА ВЫБОРА КАНАЛА И ПРОГРАММЫ ---
     private void ChannelsList_SelectionChanged(object sender, SelectionChangedEventArgs e) {
         if (ChannelsList.SelectedItem is M3uChannel ch) {
-            // Теперь текстовые поля (Имя, Группа, URL) обновляются сами через Binding в XAML
-            
-            UpdateTestEPG(ch); // Генерируем тестовую программу передач
-            PlayUrl(ch.StreamUrl); // Запускаем видео
+            UpdateTestEPG(ch);
+            PlayUrl(ch.StreamUrl);
         }
     }
 
     private void UpdateTestEPG(M3uChannel ch) {
-        // Устанавливаем время и заголовок текущей передачи
         ch.CurrentProgramTime = DateTime.Now.ToString("HH:mm") + " — " + DateTime.Now.AddHours(1).ToString("HH:mm");
         ch.CurrentProgramTitle = "Сейчас в эфире: " + ch.Name;
         
-        // Очищаем и заполняем список будущих передач
         ch.UpcomingPrograms.Clear();
         ch.UpcomingPrograms.Add(DateTime.Now.AddHours(1).ToString("HH:mm") + " — Следующая интересная передача");
         ch.UpcomingPrograms.Add(DateTime.Now.AddHours(2).ToString("HH:mm") + " — Вечерний выпуск новостей");
@@ -92,9 +88,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
         var dlg = new OpenFileDialog { Filter = "M3U8|*.m3u8", Title = "Выберите файл для умного импорта" };
         if (dlg.ShowDialog() != true) return;
 
-        TxtStatus.Text = "Импорт: Чтение файла...";
+        TxtStatus.Text = "Импорт: Чтение и парсинг...";
         var importedList = ParseM3u(dlg.FileName);
-        if (!importedList.Any()) { MessageBox.Show("Файл пуст или не распознан."); return; }
+        
+        if (!importedList.Any()) { 
+            MessageBox.Show("Файл пуст или формат не распознан."); 
+            TxtStatus.Text = "Ошибка импорта";
+            return; 
+        }
 
         _checkerCts?.Cancel();
         _checkerCts = new CancellationTokenSource();
@@ -115,7 +116,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
                     ch.Sources = new ObservableCollection<StreamSource>(activeSources);
                     lock (activeImported) activeImported.Add(ch);
                 }
-            } finally { sem.Release(); }
+            } catch { } 
+            finally { sem.Release(); }
         });
 
         await Task.WhenAll(checkTasks);
@@ -124,23 +126,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
         int addedChannels = 0;
         
         foreach (var imp in activeImported) {
-            foreach (var impSrc in imp.Sources) {
-                bool urlExists = Channels.Any(c => c.Sources.Any(s => s.Url == impSrc.Url));
-                if (urlExists) continue;
+            var existingChan = Channels.FirstOrDefault(c => string.Equals(c.Name, imp.Name, StringComparison.OrdinalIgnoreCase));
 
-                var existingChan = Channels.FirstOrDefault(c => string.Equals(c.Name, imp.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (existingChan != null) {
-                    impSrc.IsActive = false;
-                    existingChan.Sources.Add(impSrc);
-                    existingChan.HasBackup = true;
-                    addedLinks++;
-                } else {
-                    Channels.Add(imp);
-                    _ = imp.LoadImageAsync();
-                    addedChannels++;
-                    break; 
+            if (existingChan != null) {
+                foreach (var impSrc in imp.Sources) {
+                    if (!existingChan.Sources.Any(s => s.Url == impSrc.Url)) {
+                        impSrc.IsActive = false;
+                        existingChan.Sources.Add(impSrc);
+                        existingChan.HasBackup = true;
+                        addedLinks++;
+                    }
                 }
+            } else {
+                Channels.Add(imp);
+                _ = imp.LoadImageAsync();
+                addedChannels++;
             }
         }
 
@@ -148,26 +148,51 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
         UpdateStats();
     }
 
+    // УЛУЧШЕННЫЙ ПАРСЕР (решает проблему с #EXTVLCOPT и пропуском каналов)
     private List<M3uChannel> ParseM3u(string filePath) {
         var list = new List<M3uChannel>();
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         byte[] rawBytes = File.ReadAllBytes(filePath);
-        string text = Encoding.UTF8.GetString(rawBytes);
         
-        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < lines.Length; i++) {
-            if (lines[i].StartsWith("#EXTINF")) {
-                var ch = new M3uChannel();
-                var m = Regex.Match(lines[i], @"#EXTINF:-?\d+\s+(.*),(.*)");
+        // Авто-определение кодировки
+        string text;
+        if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
+            text = Encoding.UTF8.GetString(rawBytes);
+        else {
+            string temp = Encoding.UTF8.GetString(rawBytes);
+            text = Regex.IsMatch(temp, @"[а-яА-ЯёЁ]") ? temp : Encoding.GetEncoding(1251).GetString(rawBytes);
+        }
+
+        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        M3uChannel? currentChannel = null;
+
+        foreach (var line in lines) {
+            string l = line.Trim();
+            if (string.IsNullOrWhiteSpace(l) || l.StartsWith("#EXTM3U")) continue;
+
+            if (l.StartsWith("#EXTINF:")) {
+                currentChannel = new M3uChannel();
+                var m = Regex.Match(l, @"#EXTINF:-?\d+\s+(.*),(.*)");
                 if (m.Success) {
-                    ch.Name = m.Groups[2].Value.Trim();
-                    ch.LogoUrl = Regex.Match(m.Groups[1].Value, @"tvg-logo=""([^""]*)""").Groups[1].Value;
-                    ch.GroupTitle = Regex.Match(m.Groups[1].Value, @"group-title=""([^""]*)""").Groups[1].Value;
+                    string attrs = m.Groups[1].Value;
+                    currentChannel.Name = m.Groups[2].Value.Trim();
+                    currentChannel.LogoUrl = Regex.Match(attrs, @"tvg-logo=""([^""]*)""").Groups[1].Value;
+                    currentChannel.GroupTitle = Regex.Match(attrs, @"group-title=""([^""]*)""").Groups[1].Value;
+                    currentChannel.TvgId = Regex.Match(attrs, @"tvg-id=""([^""]*)""").Groups[1].Value;
                 }
-                if (i + 1 < lines.Length && lines[i+1].Contains("http")) {
-                    ch.Sources.Add(new StreamSource { Url = lines[i+1].TrimStart('#').Trim(), IsActive = true });
-                    list.Add(ch);
-                }
+            }
+            else if (l.StartsWith("#EXTVLCOPT:") && currentChannel != null) {
+                currentChannel.RawOptions += l + Environment.NewLine;
+            }
+            else if (l.Contains("http") && currentChannel != null) {
+                bool isCommented = l.StartsWith("#");
+                currentChannel.Sources.Add(new StreamSource { 
+                    Url = l.TrimStart('#').Trim(), 
+                    IsActive = !isCommented && !currentChannel.Sources.Any(s => s.IsActive) 
+                });
+                
+                // Если мы нашли хотя бы одну рабочую ссылку, добавляем канал в список (если еще не там)
+                if (!list.Contains(currentChannel)) list.Add(currentChannel);
             }
         }
         return list;
@@ -243,63 +268,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged {
     private void BtnOpen_Click(object sender, RoutedEventArgs e) {
         var dlg = new OpenFileDialog { Filter = "M3U8|*.m3u8" };
         if (dlg.ShowDialog() == true) {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            byte[] rawBytes = File.ReadAllBytes(dlg.FileName);
-            string text;
-            if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF) {
-                text = Encoding.UTF8.GetString(rawBytes);
-            } else {
-                string utf8Text = Encoding.UTF8.GetString(rawBytes);
-                bool hasCyrillic = Regex.IsMatch(utf8Text, @"[а-яА-ЯёЁ]");
-                text = (!hasCyrillic && rawBytes.Any(b => b > 127)) ? Encoding.GetEncoding(1251).GetString(rawBytes) : utf8Text;
-            }
             Channels.Clear();
-            var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            int startLine = 0;
-            for (int k = 0; k < lines.Length; k++) {
-                if (lines[k].Contains("#EXTM3U")) { _m3uHeader = lines[k].Trim(); startLine = k + 1; break; }
+            var imported = ParseM3u(dlg.FileName);
+            foreach (var ch in imported) {
+                Channels.Add(ch);
+                _ = ch.LoadImageAsync();
             }
-            for (int i = startLine; i < lines.Length; i++) {
-                if (lines[i].Trim().StartsWith("#EXTINF")) {
-                    var ch = new M3uChannel();
-                    if (i > 0) {
-                        string prev = lines[i - 1].Trim();
-                        if (prev.StartsWith("#") && !prev.StartsWith("#EXT") && !prev.StartsWith("#http")) ch.HeaderComment = prev;
-                    }
-                    var m = Regex.Match(lines[i], @"#EXTINF:-?\d+\s+(.*),(.*)");
-                    if (m.Success) {
-                        string attr = m.Groups[1].Value;
-                        ch.Name = m.Groups[2].Value.Trim();
-                        ch.LogoUrl = Regex.Match(attr, @"tvg-logo=""([^""]*)""").Groups[1].Value;
-                        ch.GroupTitle = Regex.Match(attr, @"group-title=""([^""]*)""").Groups[1].Value;
-                        ch.TvgId = Regex.Match(attr, @"tvg-id=""([^""]*)""").Groups[1].Value;
-                        string rem = attr;
-                        string[] toRemove = { @"tvg-logo=""[^""]*""\s?", @"group-title=""[^""]*""\s?", @"tvg-id=""[^""]*""\s?", @"tvg-name=""[^""]*""\s?" };
-                        foreach (var pattern in toRemove) rem = Regex.Replace(rem, pattern, "");
-                        ch.OtherAttributes = rem.Trim();
-                    }
-                    int j = i + 1;
-                    bool hasVisibleUrl = false;
-                    while (j < lines.Length && !lines[j].Trim().StartsWith("#EXTINF")) {
-                        string cur = lines[j].Trim();
-                        if (!string.IsNullOrEmpty(cur)) {
-                            if (cur.StartsWith("#") && !cur.StartsWith("#EXT") && !cur.StartsWith("#http")) break;
-                            if (cur.StartsWith("#EXTVLCOPT:")) ch.RawOptions += cur + Environment.NewLine;
-                            else if (cur.Contains("http")) {
-                                bool isCommented = cur.StartsWith("#");
-                                if (!isCommented) hasVisibleUrl = true;
-                                ch.Sources.Add(new StreamSource { Url = cur.TrimStart('#'), IsActive = !isCommented && !ch.Sources.Any(s => s.IsActive) });
-                            }
-                        }
-                        j++;
-                    }
-                    ch.IsHidden = !hasVisibleUrl;
-                    Channels.Add(ch); 
-                    _ = ch.LoadImageAsync(); 
-                    i = j - 1;
-                }
-            }
-            _isDirty = false; UpdateStats();
+            _isDirty = false; 
+            UpdateStats();
+            TxtStatus.Text = "Файл открыт";
         }
     }
 
