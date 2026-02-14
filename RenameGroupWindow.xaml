@@ -1,0 +1,16 @@
+﻿<Window x:Class="WpfApp1.RenameGroupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Переименование категории" Height="250" Width="400" Background="#1E1E1E" WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="20">
+        <StackPanel>
+            <TextBlock Text="Текущая категория:" Foreground="Gray" Margin="0,0,0,5"/>
+            <ComboBox x:Name="ComboGroups" Height="30" Margin="0,0,0,15" Background="#2D2D2D"/>
+            
+            <TextBlock Text="Новое название (или существующее для слияния):" Foreground="Gray" Margin="0,0,0,5"/>
+            <TextBox x:Name="TxtNewName" Height="30" Background="#2D2D2D" Foreground="White" VerticalContentAlignment="Center" BorderBrush="#3F3F46"/>
+            
+            <Button Content="Применить ко всем" Click="BtnOk_Click" Height="35" Margin="0,20,0,0" Background="#0E639C" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>
