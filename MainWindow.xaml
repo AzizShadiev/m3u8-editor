@@ -164,18 +164,16 @@
                         Margin="10" FontSize="18" Panel.ZIndex="50" Cursor="Hand"/>
                 
                 <Border Grid.Row="1" Background="Black" Margin="10,35,10,10" CornerRadius="4" ClipToBounds="True">
-                    <Grid>
-                        <vlc:VideoView x:Name="VideoPlayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        
-                        <Button x:Name="BtnMute" Style="{StaticResource PlayerCircleButtonStyle}"
-                                Content="🔊" Click="BtnMute_Click" 
-                                HorizontalAlignment="Right" VerticalAlignment="Bottom" 
-                                Margin="15" Panel.ZIndex="100"/>
-                    </Grid>
+                    <vlc:VideoView x:Name="VideoPlayer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                 </Border>
 
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="15,5,15,15">
+                        
+                        <Button x:Name="BtnMute" Style="{StaticResource PlayerCircleButtonStyle}"
+                                Content="🔊" Click="BtnMute_Click" 
+                                HorizontalAlignment="Right" Margin="0,0,10,10"/>
+
                         <Grid Margin="0,0,0,15">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
